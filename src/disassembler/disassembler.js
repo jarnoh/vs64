@@ -735,7 +735,7 @@ class Html {
 
     }
 
-    static opcode(_instruction, _params, _label, _addr, _hex, _comment) {
+    static opcode(_instruction, _params, _label, _addr, _hex, _comment, _cycles) {
 
         let line = Html.spaces(4);
 
@@ -756,6 +756,11 @@ class Html {
         if (len < minLength) line += Html.spaces(minLength - len);
 
         let semicolon = false;
+
+        if(_cycles) {
+            line += Html.tag("address", (semicolon ? "" : "&nbsp;;&nbsp;") + this.fixed(_cycles, 3) + "c&nbsp;");
+            semicolon = true;
+        }
 
         if (_addr) {
             line += Html.tag("address", (semicolon ? "" : "&nbsp;;&nbsp;") + this.fixed(_addr, 5) + "&nbsp;");
@@ -901,7 +906,8 @@ class Disassembler {
                 const jumpLabel = statement.getInstructionJumpLabel();
                 const hex = statement.getInstructionHex();
                 const comment = statement.comment;
-                line = Formatter.opcode(instruction, params, jumpLabel, addr, hex, comment);
+                const cycles = statement.cycles;
+                line = Formatter.opcode(instruction, params, jumpLabel, addr, hex, comment, cycles);
                 break;
             }
             case 'invalid': {

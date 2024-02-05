@@ -237,10 +237,10 @@ const OpcodeTable = [
     [0x85,47,AddressMode.zp,3,0], // STA
     [0x95,47,AddressMode.zpx,4,0],
     [0x8D,47,AddressMode.abs,4,0],
-    [0x9D,47,AddressMode.abx,4,0],
-    [0x99,47,AddressMode.aby,4,0],
+    [0x9D,47,AddressMode.abx,5,0],
+    [0x99,47,AddressMode.aby,5,0],
     [0x81,47,AddressMode.izx,6,0],
-    [0x91,47,AddressMode.izy,5,0],
+    [0x91,47,AddressMode.izy,6,0],
 
     [0x86,48,AddressMode.zp,3,0], // STX
     [0x96,48,AddressMode.zpy,4,0],

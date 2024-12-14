@@ -14,8 +14,9 @@ The VS64 extension makes it easy to develop software for the C64 using Visual St
 
 * ACME assembler
 * KickAssembler
-* CC65 C-compiler
 * LLVM-MOS C/C++
+* CC65 C-compiler
+* Oscar64 C-compiler
 * BASIC V2 and Tuned Simon's BASIC
 * Meta-build system based on the Ninja build toolkit
 * Integrated project setup and configuration
@@ -28,6 +29,7 @@ The VS64 extension makes it easy to develop software for the C64 using Visual St
 * Launch support for the X16 emulator
 * Integrated MOS 6502 cpu emulation, support for C64 memory model and startup behavior
 * Extended introspection for 6502 cpu states, C64 custom chips state information and memory contents
+* Direct access to D64 disks as virtual workspace folders
 * On-the-fly disassembly of C64 program files for assembly and BASIC code
 
 ## Quick and Start (TL;DR)
@@ -38,7 +40,7 @@ The quickest start is by opening the command palette and run the **"VS64: Gettin
 
 If you want to do some manual steps or adjustments, these are the individual things to look at:
 
-* Install the ACME cross-assembler and/or the CC65 C-compiler and/or the LLVM-MOS C/C++ compiler
+* Install your assemblers and/or compilers
 * Install the VICE emulator
 * Adjust your VS64 settings
 * Run "VS64: Create Project" from the command palette
@@ -69,6 +71,14 @@ VS64 supports Kick Assembler.
 
 Please make sure you check the VS64 settings for the correct KickAssembler installation path.
 
+### LLVM-MOS Compiler
+
+VS64 also supports the LLVM-MOS C/C++ Compiler.
+
+* Installation: Download and install from https://github.com/llvm-mos/llvm-mos-sdk
+
+Please make sure you update the VS64 settings with the correct LLVM-MOS installation and include paths.
+
 ### CC65 Compiler
 
 VS64 also supports the CC65 6502 C Compiler.
@@ -76,15 +86,15 @@ VS64 also supports the CC65 6502 C Compiler.
 * Manual installation: Download and install from https://cc65.github.io
 * Use a package management system, for example on Ubuntu/Debian: `sudo apt install cc65`
 
-In case you did a manual or custom installation, please make sure you updated the VS64 settings with the correct CC65 installation and include paths.
+In case you did a manual or custom installation, please make sure you update the VS64 settings with the correct CC65 installation and include paths.
 
-### LLVM-MOS Compiler
+### Oscar64 Compiler
 
-VS64 also supports the LLVM-MOS C/C++ Compiler.
+VS64 also supports the Oscar64 C Compiler.
 
-* Installation: Download and install from https://github.com/llvm-mos/llvm-mos-sdk
+* Manual installation: Download and install from https://github.com/drmortalwombat/oscar64
 
-Please make sure you updated the VS64 settings with the correct LLVM-MOS installation and include paths.
+In case you did a customized installation, please make sure you update the VS64 settings with the correct Oscar65 installation and include paths.
 
 ### BASIC Compiler
 
@@ -110,7 +120,6 @@ To enable this feature, just set the build mode in the project file to "release"
 ```
 "build": "release"
 ```
-
 
 ### Upper/Lower Case Character Set
 
@@ -249,7 +258,7 @@ Please make sure you update the VS64 settings with the correct x16emu executable
 
 The VS64 extension provides a convienient editing, build and run environment. This is done by providing syntax highlighting, seamless integration to the task, build and launch system, an embedded 6502 CPU emulator for fast and precise evaluation of 6502 code and integration of the VICE C64 emulator for advanced system debugging. For further analysis, an integrated disassembler and BASIC-decompiler for C64 program files is provided.
 
-For details, please look at the provided example projects for ACME, CC65, LLVM-MOS or BASIC.
+For details, please look at the provided example projects for ACME, LLVM-MOS, CC65 or BASIC.
 
 ### Build System
 
@@ -387,7 +396,7 @@ Defines all used source and resource files. The build system will keep track of 
 
 > toolkit
 
-Specifies which build toolkit is used. Currently supported are `"acme"`, `"kick"`, `"cc65"`, `"llvm"` and `"basic"`.
+Specifies which build toolkit is used. Currently supported are `"acme"`, `"kick"`, `"llvm"`, `"cc65"`, `"oscar64"` and `"basic"`.
 
 > machine
 
@@ -483,6 +492,27 @@ Optional arguments to be added to the resource compiler command. Use this to for
 
 VS64 supports on-the-fly disassembly of .prg files containing either machine code or BASIC programs.
 In order to use it, just open a `.prg` file in the Visual Studio Code editor.
+
+### D64 File System Provider
+
+VS64 allows mounting D64 files as virtual folders of the Visual Studio Code workspace tree.
+
+To add a D64 file to the workspace, simply select a .d64 disk file, then right-click and select "Mount".
+In case the disk was successfully opened, there should be a new folder at the root level of the project workspace.
+
+In order to unmount a virtual D64 folder, simple select the workspace folder and choose "Remove from workspace".
+
+Supported actions:
+
+- Open and edit files
+- Copy files to and from disk
+- Delete files
+- Rename files
+
+Some additional notes:
+
+- Be careful about what you do, you will actually modify your D64 file
+- To create a new disk, just create a new .d64 file and mount it. VS64 will automatically create, format and mount the disk file.
 
 ### IntelliSense Support
 
@@ -740,6 +770,7 @@ This package includes open source from other developers and I would like to than
 * The Kick Assembler: http://theweb.dk/KickAssembler
 * LLVM-MOS: https://github.com/llvm-mos/llvm-mos-sdk
 * CC65 C-Compiler: https://cc65.github.io
+* Oscar64 C-Compiler: https://github.com/drmortalwombat/oscar64
 * VICE, the Versatile Commodore Emulator: http://vice-emu.sourceforge.net
 * Ninja build system: https://ninja-build.org
 * Cycle-accurate 6502 emulator in Javascript: https://github.com/Torlus/6502.js

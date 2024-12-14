@@ -12,7 +12,6 @@ from .common import CompileError, CompileOptions, CompileBuffer, CompileHelper
 # Basic Module
 #############################################################################
 
-
 class BasicModule:
     """Basic module."""
 
@@ -35,7 +34,6 @@ class BasicModule:
 #############################################################################
 # Basic Line
 #############################################################################
-
 
 class BasicLine:
     """Basic line."""
@@ -152,7 +150,6 @@ class BasicLine:
 # SourceMap
 #############################################################################
 
-
 class SourceMap:
     """Debug information."""
 
@@ -176,7 +173,6 @@ class SourceMap:
 #############################################################################
 # Basic Program
 #############################################################################
-
 
 class BasicProgram:
     """Basic program."""
@@ -325,7 +321,6 @@ class BasicProgram:
 # Basic Compiler
 #############################################################################
 
-
 class BasicCompiler:
     """Basic compiler."""
 
@@ -338,8 +333,8 @@ class BasicCompiler:
         self.token_map = None
         self.line_number_map = None
         self.last_line = 0
+        self.max_line_number = 0
         self.new_labels = []
-        self.include_path = []
         self.labels = {}
         self.modules = None
 
@@ -377,6 +372,14 @@ class BasicCompiler:
         if err:
             return err
 
+        # there was a label at the end without following BASIC statement
+        need_ending_line = False
+        if len(self.new_labels) > 0:
+            need_ending_line = True
+            for new_label in self.new_labels:
+                self.labels[new_label] = self.max_line_number+1
+            self.new_labels = []
+
         # restore initial options
         options.lower_case = initial_lower_case_settings
 
@@ -385,6 +388,14 @@ class BasicCompiler:
             err = self.compile_module(module)
             if err:
                 return err
+
+        # add REM statement at the end in case there was a label at the end
+        if need_ending_line and len(self.modules) > 0:
+            (ending_line, err) = self.compile_line(self.modules[-1], "rem", -1)
+            if ending_line:
+                ending_line.set_source_line("rem")
+                ending_line.set_index(-1)
+                self.program.add_line(ending_line)
 
         # resolve program addresses
         self.program.resolve()
@@ -422,6 +433,7 @@ class BasicCompiler:
             if err:
                 return err
             self.modules.append(module)
+        self.max_line_number = max(self.last_line, self.max_line_number)
         self.last_line = 0
 
         return None
@@ -560,9 +572,15 @@ class BasicCompiler:
 
         last_was_whitespace = True
 
+        command_token = None
+
         while ofs < len(line):
             c = line[ofs]
             current_char = c
+
+            token = None
+            token_id = None
+            token_len = None
 
             if c == " ":
                 # space
@@ -576,12 +594,18 @@ class BasicCompiler:
 
             elif c == ":":
                 # handle statement separator ':'
+                command_token = None
                 last_was_jump = 0x0
                 if not crunch or (
                     not basic_line.is_empty() and not basic_line.peek_last_char() == ":"
                 ):
                     basic_line.store_char(c)
 
+                ofs += 1
+
+            elif command_token == 0x83 and c in ['-', '+']:
+                # handle operator signs in data line
+                basic_line.store_char(c)
                 ofs += 1
 
             elif c == '"' or c == "'":
@@ -649,34 +673,97 @@ class BasicCompiler:
             elif last_was_jump != 0x0 and self.is_label_char(c):
                 # handle label after jump
                 label = ""
-                while ofs < len(line) and (
-                    self.is_label_char(c) or self.is_numeric_char(c)
-                ):
-                    label += c
-                    ofs += 1
-                    if ofs < len(line):
-                        c = line[ofs]
+                no_jump_label_after_then = False
+
+                ofs_before_label = ofs # backup position after jump/then token
+
+                while ofs < len(line):
+                    if last_was_jump == 0xA7 and self.is_numeric_char(c) and (label.lower() == "goto" or label.lower() == "gosub" or label.lower() == "go"):
+                        # handle THEN GOTOn or GOSUBn or GOn without whitespace after GO...
+                        break
+                    elif last_was_jump == 0xCB and self.is_numeric_char(c) and label.lower() == "to":
+                        # handle THEN GO TOn without whitespace after TO
+                        break
+                    elif self.is_label_char(c) or self.is_numeric_char(c):
+                        label += c
+                        ofs += 1
+                        if ofs < len(line):
+                            c = line[ofs]
+                    else:
+                        ofs_old = ofs # backup position after identifier
+
+                        # look ahead if there is a variable assignment after THEN
+                        while ofs < len(line) and c == " ":
+                            ofs += 1
+                            if ofs < len(line):
+                                c = line[ofs]
+
+                        # token ends either with variable type, any bracket (even special)
+                        # or assignment operator
+                        if c in "=$%([{" :
+                            no_jump_label_after_then = True
+                            ofs = ofs_old # continue after identifier
+                        elif c == '#':
+                            # example: 'THEN GET# ...'
+                            no_jump_label_after_then = True
+                            ofs = ofs_before_label # continue before identifier
+                        else:
+                            ofs = ofs_old # continue after identifier
+
+                        break
 
                 if last_was_jump == 0xCB and label.lower() == "sub":
-                    # turn 'go sub' into gosub
+                    # turn 'GO SUB' into GOSUB
+                    basic_line.store_byte(0x8D, label)
+                    last_was_jump = 0x8D
+                elif last_was_jump == 0xCB and label.lower() == "to":
+                    # handle 'GO TO'
+                    basic_line.store_byte(0xA4, label)
+                    last_was_jump = 0xA4
+                elif last_was_jump == 0xA7 and label.lower() == "goto":
+                    # handle 'THEN GOTO'
+                    basic_line.store_byte(0x89, label)
+                    last_was_jump = 0x89
+                elif last_was_jump == 0xA7 and label.lower() == "go":
+                    # handle 'THEN GO'
+                    basic_line.store_byte(0xCB, label)
+                    last_was_jump = 0xCB
+                elif last_was_jump == 0xA7 and label.lower() == "gosub":
+                    # handle 'THEN GOSUB'
                     basic_line.store_byte(0x8D, label)
                     last_was_jump = 0x8D
                 else:
-                    # get line number from label
-                    label_line_number = self.labels.get(label.lower())
 
-                    if label_line_number:
-                        basic_line.store_string(str(label_line_number))
-                    else:
-                        return (
-                            0,
-                            None,
-                            CompileError(
-                                module.filename,
-                                f"undefined label '{label}'",
-                                line_index,
-                            ),
-                        )
+                    if last_was_jump == 0xA7:
+                        # handle 'THEN TOKEN' instead of 'THEN label'
+                        token, token_id, token_len = self.match_token(label)
+                        if token: ofs = ofs_before_label # reset parsing and handling to token start
+
+                    if not token:
+
+                        if no_jump_label_after_then:
+                            # store identifier for variable assignment and continue
+                            basic_line.store_string(label)
+                        else:
+                            # get line number from label
+                            label_line_number = self.labels.get(label.lower())
+
+                            if label_line_number:
+                                basic_line.store_string(str(label_line_number))
+                            elif last_was_jump == 0xA7:
+                                # if no label was found after THEN, just expect
+                                # some token not separated with whitespace
+                                last_was_jump = 0x0
+                                ofs = ofs_before_label
+                            else:
+                                return (
+                                    None,
+                                    CompileError(
+                                        module.filename,
+                                        f"undefined label '{label}'",
+                                        line_index,
+                                    ),
+                                )
 
             elif last_was_jump != 0x0 and self.is_numeric_char(c):
                 # handle line number after jump
@@ -694,54 +781,7 @@ class BasicCompiler:
 
             else:  # scan BASIC token
                 token, token_id, token_len = self.peek_token(line, ofs)
-                if token:
-                    token_skipped = False
-
-                    if token_id & 0xFF0000:
-                        # 3-byte token (TSB extensions)
-                        basic_line.store_byte((token_id & 0xFF0000) >> 16)
-                        basic_line.store_byte((token_id & 0xFF00) >> 8)
-                        basic_line.store_byte(token_id & 0xFF)
-                    elif token_id & 0xFF00:
-                        if token_id == 0x6428:
-                            # special case 'AT(' because bracket needs to follow,
-                            # but BASIC interpreter generates one automatically
-                            basic_line.store_byte(0x64)
-                        else:
-                            # map extension tokens: (3c->b3, 3d->b2, 3e->b1)
-                            if token_id >= 0x643c and token_id <= 0x643e:
-                                token_id = token_id ^ 0x8f
-
-                            # 2-byte token (SB/TSB)
-                            basic_line.store_word_be(token_id)
-                    else:
-                        # 1-byte token (BASIC V2 originals)
-                        if not crunch or token_id != 0x8F:  # ignore REM when crunching
-                            basic_line.store_byte(token_id)
-                        else:
-                            token_skipped = True
-
-                    # GOTO or GOSUB ?
-                    last_was_jump = token_id if token_id in [0x89, 0x8D, 0xCB] else 0x0
-
-                    ofs += token_len
-                    if not token_skipped:
-                        if Constants.DEBUG_MODE:
-                            basic_line.add_verbose(f"{{${token_id:x}:{token}}}")
-                        else:
-                            basic_line.add_verbose(token)
-
-                    # REM ?
-                    if token_id == 0x8F:
-                        # after REM, consume all characters until eol
-                        while ofs < len(line):
-                            if not crunch:
-                                c = line[ofs]
-                                if c != "\t":
-                                    basic_line.store_char(line[ofs])
-                            ofs += 1
-
-                else:
+                if not token:
                     # no token
                     if c != "," and not self.is_numeric_char(c):
                         last_was_jump = 0x0
@@ -754,6 +794,58 @@ class BasicCompiler:
 
                     basic_line.store_char(c)
                     ofs += 1
+
+            if token:
+
+                if command_token is None: command_token = token_id
+
+                token_skipped = False
+
+                if token_id & 0xFF0000:
+                    # 3-byte token (TSB extensions)
+                    basic_line.store_byte((token_id & 0xFF0000) >> 16)
+                    basic_line.store_byte((token_id & 0xFF00) >> 8)
+                    basic_line.store_byte(token_id & 0xFF)
+                elif token_id & 0xFF00:
+                    if token_id == 0x6428:
+                        # special case 'AT(' because bracket needs to follow,
+                        # but BASIC interpreter generates one automatically
+                        basic_line.store_byte(0x64)
+                    else:
+                        # map extension tokens: (3c->b3, 3d->b2, 3e->b1)
+                        if token_id >= 0x643c and token_id <= 0x643e:
+                            token_id = token_id ^ 0x8f
+
+                        # 2-byte token (SB/TSB)
+                        basic_line.store_word_be(token_id)
+                else:
+                    # 1-byte token (BASIC V2 originals)
+                    if not crunch or token_id != 0x8F:  # ignore REM when crunching
+                        basic_line.store_byte(token_id)
+                    else:
+                        token_skipped = True
+
+                # GOTO or GOSUB ? ('GOTO', 'GOSUB', 'GO', 'THEN')
+                last_was_jump = token_id if token_id in [0x89, 0x8D, 0xCB, 0xA7] else 0x0
+
+                ofs += token_len
+                if not token_skipped:
+                    if Constants.DEBUG_MODE:
+                        basic_line.add_verbose(f"{{${token_id:x}:{token}}}")
+                    else:
+                        basic_line.add_verbose(token)
+
+                # REM ?
+                if token_id == 0x8F:
+                    # after REM, consume all characters until eol
+                    while ofs < len(line):
+                        if not crunch:
+                            c = line[ofs]
+                            if c != "\t":
+                                basic_line.store_char(line[ofs])
+                        ofs += 1
+
+
 
             last_was_whitespace = current_char == " "
 
@@ -806,7 +898,7 @@ class BasicCompiler:
                     self.new_labels.append(label.lower())
                 ofs = len(result[0]) + 1
                 if ofs >= len(line):
-                    if verbose:
+                    if verbose and preprocess:
                         print(f"{label}:")
                     return (0, None, None)  # just label line, no BASIC code
 
@@ -853,12 +945,34 @@ class BasicCompiler:
         if os.path.exists(f):
             return f
 
-        for path_entry in self.include_path:
+        for path_entry in self.options.include_path:
             f = os.path.abspath(os.path.join(path_entry, filename))
             if os.path.exists(f):
                 return f
 
         return None
+
+    def match_token(self, text):
+        """Check if text is a token."""
+
+        if text == "?":
+            return ("?", 0x99, 1)
+
+        uppercase_text = text.upper()
+
+        for k in self.sorted_token_list:
+            if len(k) >= 2:
+                abbrev = ""
+                if k in ["gosub", "left", "step", "str", "restore", "return", "close"]:
+                    abbrev = k[0].lower() + k[1].lower + k[2].upper()
+                else:
+                    abbrev = k[0].lower() + k[1].upper()
+                if text == abbrev:
+                    return (k, Constants.BASIC_TOKENS[k], len(abbrev))
+            if uppercase_text == k:
+                return (k, self.token_map[k], len(k))
+
+        return None, None, 0
 
     def peek_token(self, text, ofs):
         """Look at the next token."""

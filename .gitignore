@@ -5,7 +5,9 @@ node_modules
 .clwb
 .cache
 .project
+.vscode/settings.json
 build
+dist
 *~
 *.vsix
 examples/**/settings.json

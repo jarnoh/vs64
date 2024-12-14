@@ -1,6 +1,55 @@
 # Change Log
 All notable changes to the **VS64 Development Environment** extension will be documented in this file.
 
+## 2.5.14 Minor Update
+
+- Bug-fixes and minor improvements
+
+## 2.5.13 Minor Update
+
+- Bug-fixes and minor improvements
+
+## 2.5.12 Minor Update
+
+- Bug-fixes and minor improvements
+
+## 2.5.11 Minor Update
+
+- Bug-fixes and minor improvements
+
+## 2.5.10 Minor Update
+
+- Added support for D64 disk files as virtual workspace folders
+- Bug-fixes and minor improvements
+
+## 2.5.9 Minor Update
+
+- Bug-fixes and minor improvements
+
+## 2.5.8 Minor Update
+
+- Fixed some glitches when debugging files without project configuration,
+  as it happens when you are writing Rust programs
+- Bug-fixes and minor improvements
+
+## 2.5.7 Minor Update
+
+- Added support for the Oscar64 C compiler
+- Added breakpoint debugger argument support for x16 emulator
+- Bug-fixes and minor improvements
+
+## 2.5.6 Minor Update
+
+- Fixed handling DATA lines and IF/THEN tokens in BASIC compiler
+- Fixed kickass multi-file handling
+- Bug-fixes and minor improvements
+
+## 2.5.5 Minor Update
+
+- Removed some glitches in BASIC compiler/disassembler
+- Added support for BASIC data output to resource compiler
+- Bug-fixes and minor improvements
+
 ## 2.5.4 Minor Update
 
 - Preliminary support for the Commander X16 emulator
